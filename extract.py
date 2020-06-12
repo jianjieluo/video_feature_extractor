@@ -15,16 +15,22 @@ parser.add_argument(
     '--csv',
     type=str,
     help='input csv with video input path')
+
+parser.add_argument(
+    '--dst_root',
+    type=str,
+    help='feature dst root dir',
+    default='data/features'
+)
+
 parser.add_argument('--batch_size', type=int, default=64,
                             help='batch size')
 parser.add_argument('--type', type=str, default='2d',
                             help='CNN type')
-parser.add_argument('--half_precision', type=int, default=1,
+parser.add_argument('--half_precision', type=int, default=0,
                             help='output half precision float')
 parser.add_argument('--num_decoding_thread', type=int, default=4,
                             help='Num parallel thread for video decoding')
-parser.add_argument('--l2_normalize', type=int, default=1,
-                            help='l2 normalize feature')
 parser.add_argument('--resnext101_model_path', type=str, default='model/resnext101.pth',
                             help='Resnext model path')
 args = parser.parse_args()
@@ -34,6 +40,7 @@ dataset = VideoLoader(
     framerate=1 if args.type == '2d' else 24,
     size=224 if args.type == '2d' else 112,
     centercrop=(args.type == '3d'),
+    dst_root=args.dst_root
 )
 n_dataset = len(dataset)
 sampler = RandomSequenceSampler(n_dataset, 10)
@@ -58,19 +65,23 @@ with th.no_grad():
             if len(video.shape) == 4:
                 video = preprocess(video)
                 n_chunk = len(video)
-                features = th.cuda.FloatTensor(n_chunk, 2048).fill_(0)
+
+                features = th.cuda.FloatTensor(n_chunk, 2048).fill_(0) \
+                           if th.cuda.is_available() \
+                           else th.FloatTensor(n_chunk, 2048).fill_(0)
+
                 n_iter = int(math.ceil(n_chunk / float(args.batch_size)))
                 for i in range(n_iter):
                     min_ind = i * args.batch_size
                     max_ind = (i + 1) * args.batch_size
-                    video_batch = video[min_ind:max_ind].cuda()
+                    video_batch = video[min_ind:max_ind]
+                    if th.cuda.is_available():
+                        video_batch = video_batch.cuda()
                     batch_features = model(video_batch)
-                    if args.l2_normalize:
-                        batch_features = F.normalize(batch_features, dim=1)
                     features[min_ind:max_ind] = batch_features
                 features = features.cpu().numpy()
                 if args.half_precision:
                     features = features.astype('float16')
-                np.save(output_file, features)
+                np.savez_compressed(output_file, features=features, num_boxes=features.shape[0])
         else:
             print('Video {} already processed.'.format(input_file))

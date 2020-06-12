@@ -15,6 +15,7 @@ class VideoLoader(Dataset):
             framerate=1,
             size=112,
             centercrop=False,
+            dst_root=None
     ):
         """
         Args:
@@ -23,6 +24,10 @@ class VideoLoader(Dataset):
         self.centercrop = centercrop
         self.size = size
         self.framerate = framerate
+
+        if not os.path.isdir(dst_root):
+            os.makedirs(dst_root)
+        self.dst_root = dst_root
 
     def __len__(self):
         return len(self.csv)
@@ -45,7 +50,8 @@ class VideoLoader(Dataset):
 
     def __getitem__(self, idx):
         video_path = self.csv['video_path'].values[idx]
-        output_file = self.csv['feature_path'].values[idx]
+        vid = self.csv['video_id'].values[idx]
+        output_file = os.path.join(self.dst_root, str(vid) + '.npz')
 
         if not(os.path.isfile(output_file)) and os.path.isfile(video_path):
             print('Decoding video: {}'.format(video_path))
