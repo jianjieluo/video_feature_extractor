@@ -25,7 +25,7 @@ parser.add_argument(
 
 parser.add_argument('--batch_size', type=int, default=64,
                             help='batch size')
-parser.add_argument('--type', type=str, default='2d',
+parser.add_argument('--type', type=str, default='3d',
                             help='CNN type')
 parser.add_argument('--half_precision', type=int, default=0,
                             help='output half precision float')
